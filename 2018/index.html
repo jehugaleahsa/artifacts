@@ -1,0 +1,76 @@
+<html>
+    <head>
+        <style>
+            body {
+                background-color: black;
+                font-size: 72px;
+                background-image: url(https://larspsyll.files.wordpress.com/2018/06/unicorn.jpg?w=480&h=480);
+                background-size: 50px 50px repeat;
+            }
+
+            .sandwich {
+                color: green;
+                margin: 10px auto;
+                text-align: center;
+                background-color: lightcyan;
+            }
+
+            .sandwich-image {
+                height: 400px;
+                width: 400px;
+                border: 10px solid brown;
+            }
+
+            .flower-image {
+                border: 10px solid lightgreen;
+            }
+
+            .flower {
+                color:mediumorchid;
+                margin: 10px auto;
+                text-align: center;
+            }
+
+            .party-tent {
+                color: #F33;
+                margin: 10px auto;
+                text-align: center;
+            }
+
+            .image-container {
+                width: 100%;
+                text-align: center;
+            }
+
+            .party-tent-image {
+                width: 500px;
+            }
+
+        </style>
+        <script>
+            function updateProgress() {
+                var element = document.getElementById("myProgressBar");
+                setInterval(function () {
+                    var value = element.getAttribute("value");
+                    ++value;
+                    element.setAttribute("value", value);
+                }, 1000);
+            }
+        </script>
+    </head>
+    <body onload="updateProgress()">
+        <progress id="myProgressBar" max="100" value="0"></progress>
+        <div class="flower">Flower</div>
+        <div class="image-container">
+            <img class="flower-image" src="https://cdn.atwilltech.com/flowerdatabase/s/sweetly-scented-bouquet-of-flowers-VA02810.425.jpg" />
+        </div>
+        <div class="sandwich">Sandwich!!</div>
+        <div class="image-container">
+            <img class="sandwich-image" src="https://thejerseyalliance.files.wordpress.com/2011/08/sandwich.jpg" />
+        </div>
+        <div class="party-tent">Sparkly Tent!!!!</div>
+        <div class="image-container">
+            <img class="party-tent-image" src="http://www.a-brides-best-friend.com/wp-content/uploads/2011/06/SAM_07-300x199.jpg" />
+        </div>
+    </body>
+</html>
