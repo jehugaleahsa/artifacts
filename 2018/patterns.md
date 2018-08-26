@@ -54,6 +54,7 @@ switch (dayOfWeek)
     case DayOfWeek.Wednesday: day = "Wednesday";
     // ...
     case DayOfWeek.Saturday: day = "Saturday";
+    default: throw new ArgumentException("Unknown day of week.", nameof(dayOfWeek));
 }
 ```
 
@@ -72,7 +73,7 @@ string ToString(DayOfWeek dayOfWeek)
         case DayOfWeek.Wednesday: return "Wednesday";
         // ...
         case DayOfWeek.Saturday: return "Saturday";
-        default: throw new ArgumentException("Unknown day of the week.", nameof(dayOfWeek));
+        default: throw new ArgumentException("Unknown day of week.", nameof(dayOfWeek));
     }
 }
 ```
@@ -95,19 +96,58 @@ if (customer.IsPreferred)
 }
 ```
 
-Or:
+Or, if you prefer immutability:
 
 ```csharp
 decimal rate = customer.DiscountRate + (customer.IsPreferred ? 10 : 0);
 ```
 
-Or:
+Or, provide a more descriptive name:
 
 ```csharp
 decimal rate = customer.DiscountRate + GetPreferredRate(customer);
-///...
+// ...
 decimal GetPreferredRate(Customer customer)
 {
     return customer.IsPreferred ? 10 : 0;
 }
 ```
+
+## Comparison
+
+## Iteration
+## Going Backwards
+You can go backward through an array like this:
+
+```csharp
+for (int i = items.Length - 1; i != -1; --i)
+{
+    // ...
+}
+```
+
+This works fine for `int` since `-1` is a valid value. Here's an equivalent loop that doesn't assume `-1` is possible:
+
+```csharp
+for (int i = items.Length; i != 0; )
+{
+    --i;
+    // ...
+}
+```
+
+## Meeting in the middle
+You can move two indexes from the start and end of a list and stop in the middle like this:
+
+```csharp
+for (int start = 0, end = items.Length; start != end; )
+{
+    --end;
+    // ...
+}
+```
+
+It doesn't matter if the array has an even or odd number of items.
+
+## Methods
+### Use guard clauses
