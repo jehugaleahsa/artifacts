@@ -5,7 +5,7 @@ A common mistake is to wrap an async implementation with `Task.Run` and expect c
 
 I've yet to hear a satisfying approach to safely use `HttpClient` in a synchronous context - I want a synchronous implementation, Microsoft! As the author of several libraries, I perfectly understand the .NET development team not wanting to provide both sync/async support, as it will undoubtably mean writing all the same code twice. For that reason, I am not getting my hopes up.
 
-Personally, I found adding support for async in my OSS projects came with a plethora of other annoying issues. I was greatly relieve when Microsoft released [ValueTask](http://blog.i3arnon.com/2015/11/30/valuetask/), which reduces the overhead of async calls when ,most of the time, an async function will return immediately. Of course, this optimization is only relevant when simple value types are being returned.
+Personally, I found adding support for async in my OSS projects came with a plethora of other annoying issues. I was greatly relieve when Microsoft released [ValueTask](http://blog.i3arnon.com/2015/11/30/valuetask/), which reduces the overhead of async calls when, most of the time, an async function will return immediately. Of course, this optimization is only relevant when simple value types are being returned.
 
 ## The obvious solution
 A great deal of code has this pattern:
@@ -156,7 +156,7 @@ private AccountModel GetAccountModel(Account account, Dictionary<int, string> le
 }
 ```
 
-Overall, we replaced a series of `async` methods in the model building code with another in the calling code - except now we have to pass around a lookup everywhere. We are also building the lookup by hitting the file system multiple times within a loop. This doesn't seem like much of an improvement!
+Overall, we replaced a series of `async` methods in the model building code with another series of `async` methods in the calling code - except now we have to pass around a lookup everywhere. We are also still building the lookup by hitting the file system multiple times within a loop. This doesn't seem like much of an improvement!
 
 ### Partial initialization
 An alternative is to initialize everything *but* the model properties requiring an asynchronous operation. In other words, don't initialize `LegalText` when initializing everything else. After `GetModel` returns, loop through the account models and set the `LegalText` property as a separate step.
@@ -185,10 +185,10 @@ private async Task SetLegalText(Account account, AccountModel model, Cancellatio
 }
 ```
 
-Rather than using a `Dictionary<int, string>` lookup and passing it around everywhere, this code uses LINQ's `join` operation to match up the original accounts with the models created by `GetModel`. Since all the work of populating `LegalText` is done in the second `SetLegalText` method, the method can simply return `Task`. I find this way less confusing than dealing with tuples, like we did in the lookup example. Note that this approach would still suffer from grabbing the same file several times. I've also encountered situations where there's no uniquely identifying field in the model to match on, like `AccountId` in this example, so you have to use a lookup instead.
+Rather than using a `Dictionary<int, string>` lookup and passing it around everywhere, this code uses LINQ's `join` operation to match up the original accounts with the models created by `GetModel`. Since all the work of populating `LegalText` is done in the second `SetLegalText` method, the method can simply return `Task`. I find this way less confusing than dealing with tuples, like we did in the lookup example. Note that this approach would still suffer from grabbing the same file several times. I've also encountered situations where there's no uniquely identifying field in the model to match on, like `AccountId` in this example, so you have to use a lookup to do up-front initialization.
 
 ## `Task` and `Lazy`
-One of the interesting things about `Task` is that it acts like `Lazy` automatically. Once the async operation completes, `Result` will automatically and immediately return the same computed value each time. This will be very useful for grabbing the same file multiple times without needing to hit the file system each time. Consider this partial implementation for `GetLegalText`:
+One of the interesting things about `Task` is that it acts like `Lazy` automatically. Once the async operation completes, `Result` will immediately return the same computed value each time. This is essential for associating the same file contents to multiple accounts without needing to hit the file system each time. Consider this implementation for `GetLegalText`:
 
 ```csharp
 private Task<string> GetLegalText(Account account, Cancellation token)
@@ -217,9 +217,9 @@ private Task<string> GetLegalText(Account account, Cancellation token)
 }
 ```
 
-This lookup ensures the same `Task<string>` is returned for a path. Several account models could be associated to the same `Task<string>`, so as soon as the file contents are read the legal text is immediately populated for each of them.
+This lookup ensures the same `Task<string>` is returned for a path. Several account models could be associated to the same `Task<string>`, so as soon as the file contents are read the legal text is immediately available for all of them.
 
-It's important to note we do not need to use a `ConcurrentDictionary` here. Even though further up the stack we are using `Task.WhenAll`, the tasks were created inside of synchronous code. In other words, the `Dictionary` is being accessed synchronously, even though reading the file is runnning asynchronously. Understanding that is fundamental to understanding asynchronous coding!
+It's important to note we do not need to use a `ConcurrentDictionary` here. Even though further up the stack we are using `Task.WhenAll`, the tasks are created synchronously. In other words, the `Dictionary` is being accessed synchronously even though reading the file is run asynchronously. Understanding that is fundamental to understanding asynchronous coding!
 
 ### Local function implementation
 Personally, I do not like having a class-wide `Dictionary` when it is only being used in one method, since that extends its lifetime unnecessarily. I might instead choose to create the `Dictionary` in the first `SetLegalText` method and pass it to second `SetLegalText` method, but now we're back to passing lookups all over.
@@ -229,16 +229,15 @@ Another nifty trick comes from C#'s recent addition of local functions (although
 ```csharp
 private static Func<Account, CancellationToken, Task<string>> GetGetLegalTextAccessor()
 {
-    private var fileLookup = new Dictionary<string, Task<string>>();
+    var fileLookup = new Dictionary<string, Task<string>>();
     Task<string> GetLegalText(Account account, CancellationToken token)
     {
         string filePath = GetLegalTextFilePath(account);
-        if (fileLookup.TryGetValue(filePath, out var result))
+        if (!fileLookup.TryGetValue(filePath, out var task))
         {
-            return result;
+            task = File.ReadAllTextAsync(filePath, token);
+            fileLookup.Add(filePath, task);
         }
-        var task = File.ReadAllTextAsync(filePath, token);
-        fileLookup.Add(filePath, task);
         return task;
     }
     return GetLegalText;
@@ -275,9 +274,9 @@ private static Func<Account, AccountModel, CancellationToken, Task> GetSetLegalT
 I think this might be easier to understand if there were better names for the accessor methods. Still, this is enough to give most people an aneurysm.
 
 ## Recurring theme - using lookups
-There's a recurring theme here that I want to focus in on. Over the past several years, I've noticed that code can often be broken out and optimized by employing lookups or doing `join`s with LINQ after-the-fact (which also use lookups internally). As another example, I can eliminate hitting the database inside of a loop by building a SQL query including an IN filter (or using `Contains` in EF) and building a lookup from the results.
+There's a recurring theme here that I want to focus in on. Over the past several years, I've noticed that code can often be broken out and optimized by employing lookups or doing `join`s with LINQ after-the-fact (which also use lookups internally). As another example, I can eliminate hitting the database inside of a loop by building a SQL query including an `IN` filter (or using `Contains` in EF) and building a lookup from the results.
 
-In the most literal sense, lookups are caches. I hope I've shown that caching is especially useful when working with asynchronous code. The primary challenge with using lookups is scoping their lifetimes, especially when used in conjuction with dependency injection. Most of the time, a lookup can only be populated after retrieving some data and then it is immmediately used thereafter, after which it is no longer necessary. This immediate use typically entails passing it as a parameter to one or [often] more methods.
+In the most literal sense, lookups are caches. I hope I've shown that caching is especially useful when working with asynchronous code. The primary challenge with using lookups is scoping their lifetimes, especially when used in conjuction with dependency injection. Most of the time, a lookup can only be populated after retrieving some data and then it is immediately used thereafter, after which it is no longer necessary. This immediate use typically entails passing it as a parameter to one or [often] more methods.
 
 The legal text lookup in my example is particularly nasty. Not only is a lookup employed to associate an account with the legal text, but a second lookup is needed to associate a file path to its contents. In both cases, the primary challenge was limiting the scope of the lookups.
 
@@ -386,4 +385,4 @@ With databases, there's a clear route to improving performance. Most of the time
 
 The point is, going through these sorts of exercises will ultimately pay off. While most of the time performance doesn't demand anything nearly as complicated as demonstrated in this article, it is important to know how to achieve it. You can do that by consolidating I/O (e.g., `Include`), parallelizing I/O (e.g., `Task.WhenAll`) and caching (e.g., `Task.Result`).
 
-I'd love to hear from anyone who's found a better way to separate out asynchronous code from synchronous code and simplified exposing lookups relying on parameters or weird lifetimes.
+I'd love to hear from anyone who's found a better way to separate out asynchronous code from synchronous code and simplified exposing lookups, so as not to rely on excessive parameter passing or weird lifetimes.
