@@ -385,4 +385,4 @@ With databases, there's a clear route to improving performance. Most of the time
 
 The point is, going through these sorts of exercises will ultimately pay off. While most of the time performance doesn't demand anything nearly as complicated as demonstrated in this article, it is important to know how to achieve it. You can do that by consolidating I/O (e.g., `Include`), parallelizing I/O (e.g., `Task.WhenAll`) and caching (e.g., `Task.Result`).
 
-I'd love to hear from anyone who's found a better way to separate out asynchronous code from synchronous code and simplified exposing lookups, so as not to rely on excessive parameter passing or weird lifetimes.
+I'd love to hear from anyone who's found a better way to separate out asynchronous code from synchronous code and simplified exposing lookups, so as not to rely on excessive parameter passing or weird lifetimes. If you'd like to keep reading about other async patterns, I found a decent [article](https://docs.microsoft.com/en-us/dotnet/standard/asynchronous-programming-patterns/consuming-the-task-based-asynchronous-pattern#building-task-based-combinators) from Microsoft last night.
