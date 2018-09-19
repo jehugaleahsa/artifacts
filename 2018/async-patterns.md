@@ -129,8 +129,8 @@ return model;
 private async Task<Dictionary<int, string>> GetLegalTextLookupAsync(IEnumerable<Account> accounts, CancellationToken token)
 {
     var tasks = accounts.Select(a => GetLegalTextPairAsync(a, token)).ToArray();
-    var results = await Task.WhenAll(tasks);
-    var lookup = results.ToDictionary(p => p.AccountId, p => p.LegalText);
+    var pairs = await Task.WhenAll(tasks);
+    var lookup = pairs.ToDictionary(p => p.AccountId, p => p.LegalText);
     return lookup;
 }
 
@@ -180,7 +180,7 @@ private Task SetLegalText(IEnumerable<Account> accounts, AccountSummaryModel mod
 
 private async Task SetLegalText(Account account, AccountModel model, CancellationToken token)
 {
-    var legalText = await GetLegalText(account, token);
+    var legalText = await GetLegalTextAsync(account, token);
     model.LegalText = legalText;
 }
 ```
@@ -188,10 +188,10 @@ private async Task SetLegalText(Account account, AccountModel model, Cancellatio
 Rather than using a `Dictionary<int, string>` lookup and passing it around everywhere, this code uses LINQ's `join` operation to match up the original accounts with the models created by `GetModel`. Since all the work of populating `LegalText` is done in the second `SetLegalText` method, the method can simply return `Task`. I find this way less confusing than dealing with tuples, like we did in the lookup example. Note that this approach would still suffer from grabbing the same file several times. I've also encountered situations where there's no uniquely identifying field in the model to match on, like `AccountId` in this example, so you have to use a lookup to do up-front initialization.
 
 ## `Task` and `Lazy`
-One of the interesting things about `Task` is that it acts like `Lazy` automatically. Once the async operation completes, `Result` will immediately return the same computed value each time. This is essential for associating the same file contents to multiple accounts without needing to hit the file system each time. Consider this implementation for `GetLegalText`:
+One of the interesting things about `Task` is that it acts like `Lazy` automatically. Once the async operation completes, `Result` will immediately return the same computed value each time. This is essential for associating the same file contents to multiple accounts without needing to hit the file system each time. Consider this implementation for `GetLegalTextAsync`:
 
 ```csharp
-private Task<string> GetLegalText(Account account, Cancellation token)
+private Task<string> GetLegalTextAsync(Account account, Cancellation token)
 {
     string filePath = GetLegalTextFilePath(account);
     return File.ReadAllTextAsync(filePath, token);
@@ -205,7 +205,7 @@ private readonly Dictionary<string, Task<string>> fileLookup = new Dictionary<st
 
 // ..
 
-private Task<string> GetLegalText(Account account, Cancellation token)
+private Task<string> GetLegalTextAsync(Account account, Cancellation token)
 {
     string filePath = GetLegalTextFilePath(account);
     if (!fileLookup.TryGetValue(filePath, out var task))
@@ -230,7 +230,7 @@ Another nifty trick comes from C#'s recent addition of local functions (although
 private static Func<Account, CancellationToken, Task<string>> GetGetLegalTextAccessor()
 {
     var fileLookup = new Dictionary<string, Task<string>>();
-    Task<string> GetLegalText(Account account, CancellationToken token)
+    Task<string> GetLegalTextAsync(Account account, CancellationToken token)
     {
         string filePath = GetLegalTextFilePath(account);
         if (!fileLookup.TryGetValue(filePath, out var task))
@@ -240,11 +240,11 @@ private static Func<Account, CancellationToken, Task<string>> GetGetLegalTextAcc
         }
         return task;
     }
-    return GetLegalText;
+    return GetLegalTextAsync;
 }
 ```
 
-Now we can pass a function everywhere instead of a `Dictionary`. Is that an improvement? Not sure... However, you'll notice `GetGetLegalTextAccessor` is `static`. That means, I could call `GetGetLegalTextAccesor` inside of the containing class' constructor and store the `Func` as a backing field. At which point, it just becomes a convenient wrapper around a `Dictionary`. Personally, I think this is just too obscure.
+Now we can pass a function everywhere instead of a `Dictionary`. Is that an improvement? Not sure... However, you'll notice `GetGetLegalTextAccessor` is `static`. That means, I could call `GetGetLegalTextAccessor` inside of the containing class' constructor and store the `Func` as a backing field. At which point, it just becomes a convenient wrapper around a `Dictionary`. Personally, I think this is just too obscure.
 
 Let's take this obscurity to the maximum! You can use these sort of wrapper methods multiple times over *to avoid passing around the wrapper methods*. Consider this implementation:
 
@@ -261,10 +261,10 @@ private Task SetLegalText(IEnumerable<Account> accounts, AccountSummaryModel mod
 
 private static Func<Account, AccountModel, CancellationToken, Task> GetSetLegalTextAccessor()
 {
-    var getLegalText = GetGetLegalTextAccessor()();
+    var getLegalTextAsync = GetGetLegalTextAccessor()();
     async Task SetLegalText(Account account, AccountModel model, CancellationToken token)
     {
-        var legalText = await getLegalText(account, token);
+        var legalText = await getLegalTextAsync(account, token);
         model.LegalText = legalText;
     }
     return SetLegalText;
