@@ -164,28 +164,28 @@ An alternative is to initialize everything *but* the model properties requiring 
 ```csharp
 var accounts = await accountRepository.GetAccountsAsync(userId, token);
 var model = modelBuilder.GetModel(accounts);
-await SetLegalText(accounts, model, token);  // Need to pass the accounts *and* model
+await SetLegalTextAsync(accounts, model, token);  // Need to pass the accounts *and* model
 return model;
 
 // ..
 
-private Task SetLegalText(IEnumerable<Account> accounts, AccountSummaryModel model, CancellationToken token) 
+private Task SetLegalTextAsync(IEnumerable<Account> accounts, AccountSummaryModel model, CancellationToken token) 
 {
     var query = from account in accounts
                 join accountModel in model.Accounts on account.Id equals accountModel.AccountId
-                select SetLegalText(account, accountModel, token);
+                select SetLegalTextAsync(account, accountModel, token);
     var tasks = query.ToArray();
     return Task.WhenAll(tasks);
 }
 
-private async Task SetLegalText(Account account, AccountModel model, CancellationToken token)
+private async Task SetLegalTextAsync(Account account, AccountModel model, CancellationToken token)
 {
     var legalText = await GetLegalTextAsync(account, token);
     model.LegalText = legalText;
 }
 ```
 
-Rather than using a `Dictionary<int, string>` lookup and passing it around everywhere, this code uses LINQ's `join` operation to match up the original accounts with the models created by `GetModel`. Since all the work of populating `LegalText` is done in the second `SetLegalText` method, the method can simply return `Task`. I find this way less confusing than dealing with tuples, like we did in the lookup example. Note that this approach would still suffer from grabbing the same file several times. I've also encountered situations where there's no uniquely identifying field in the model to match on, like `AccountId` in this example, so you have to use a lookup to do up-front initialization.
+Rather than using a `Dictionary<int, string>` lookup and passing it around everywhere, this code uses LINQ's `join` operation to match up the original accounts with the models created by `GetModel`. Since all the work of populating `LegalText` is done in the second `SetLegalTextAsync` method, the method can simply return `Task`. I find this way less confusing than dealing with tuples, like we did in the lookup example. Note that this approach would still suffer from grabbing the same file several times. I've also encountered situations where there's no uniquely identifying field in the model to match on, like `AccountId` in this example, so you have to use a lookup to do up-front initialization.
 
 ## `Task` and `Lazy`
 One of the interesting things about `Task` is that it acts like `Lazy` automatically. Once the async operation completes, `Result` will immediately return the same computed value each time. This is essential for associating the same file contents to multiple accounts without needing to hit the file system each time. Consider this implementation for `GetLegalTextAsync`:
@@ -222,7 +222,7 @@ This lookup ensures the same `Task<string>` is returned for a path. Several acco
 It's important to note we do not need to use a `ConcurrentDictionary` here. Even though further up the stack we are using `Task.WhenAll`, the tasks are created synchronously. In other words, the `Dictionary` is being accessed synchronously even though reading the file is run asynchronously. Understanding that is fundamental to understanding asynchronous coding!
 
 ### Local function implementation
-Personally, I do not like having a class-wide `Dictionary` when it is only being used in one method, since that extends its lifetime unnecessarily. I might instead choose to create the `Dictionary` in the first `SetLegalText` method and pass it to second `SetLegalText` method, but now we're back to passing lookups all over.
+Personally, I do not like having a class-wide `Dictionary` when it is only being used in one method, since that extends its lifetime unnecessarily. I might instead choose to create the `Dictionary` in the first `SetLegalTextAsync` method and pass it to second `SetLegalTextAsync` method, but now we're back to passing lookups all over.
 
 Another nifty trick comes from C#'s recent addition of local functions (although you could do this with lamdas, as well):
 
@@ -249,12 +249,12 @@ Now we can pass a function everywhere instead of a `Dictionary`. Is that an impr
 Let's take this obscurity to the maximum! You can use these sort of wrapper methods multiple times over *to avoid passing around the wrapper methods*. Consider this implementation:
 
 ```csharp
-private Task SetLegalText(IEnumerable<Account> accounts, AccountSummaryModel model, CancellationToken token) 
+private Task SetLegalTextAsync(IEnumerable<Account> accounts, AccountSummaryModel model, CancellationToken token) 
 {
-    var setLegalText = GetSetLegalTextAccessor()();
+    var setLegalTextAsync = GetSetLegalTextAccessor()();
     var query = from account in accounts
                 join accountModel in model.Accounts on account.Id equals accountModel.AccountId
-                select setLegalText(account, accountModel, token);
+                select setLegalTextAsync(account, accountModel, token);
     var tasks = query.ToArray();
     return Task.WhenAll(tasks);
 }
@@ -262,12 +262,12 @@ private Task SetLegalText(IEnumerable<Account> accounts, AccountSummaryModel mod
 private static Func<Account, AccountModel, CancellationToken, Task> GetSetLegalTextAccessor()
 {
     var getLegalTextAsync = GetGetLegalTextAccessor()();
-    async Task SetLegalText(Account account, AccountModel model, CancellationToken token)
+    async Task SetLegalTextAsync(Account account, AccountModel model, CancellationToken token)
     {
         var legalText = await getLegalTextAsync(account, token);
         model.LegalText = legalText;
     }
-    return SetLegalText;
+    return SetLegalTextAsync;
 }
 ```
 
