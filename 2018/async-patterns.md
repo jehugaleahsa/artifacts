@@ -39,7 +39,7 @@ return model;
 
 If you look at what values are being passed as parameters, you'll see there's no dependencies between the different `await` calls. They all just accept `accountNumber` (or nothing). Only at the very bottom of the method does everything come together. Here's a dependency graph of the calls (async in red/sync in green):
 
-![async dependency graph](https://raw.githubusercontent.com/jehugaleahsa/artifacts/master/2018/async%20dependency%20graph.png).
+![async dependency graph](https://raw.githubusercontent.com/jehugaleahsa/artifacts/master/2018/async%20dependency%20graph.png)
 
 The async leaf nodes of the dependency graph can all be executed in parallel. That means I can rewrite my code like this:
 
@@ -342,7 +342,7 @@ public class AccountSummaryMapperFactory
 You could even justify moving the lookup building code into `AccountSummaryMapperFactory` and change `GetMapper` to:
 
 ```csharp
-public async Task<AccountSummaryMapper> GetMapperAsync(IEnumerable<Account> accounts, CancellationToken) 
+public async Task<AccountSummaryMapper> GetMapperAsync(IEnumerable<Account> accounts, CancellationToken token) 
 {
     var mapper = serviceProvider.GetRequiredService<AccountSummaryMapper>();
     mapper.LegalTextLookup = await GetLegalTextLookupAsync(accounts, token);
