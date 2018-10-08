@@ -97,5 +97,24 @@ Here's a truth table if you want to see for yourself:
  ----------------------------------------------------
 ```
 
+## (Update) Handling whitespace
+Shortly after posting this article, I discovered there was an edge-case I missed... empty strings and all whitespace! It turns out `+""` and `+"     "` both evaluate to `0` (zero). So now what? We're back to needing to call `string` operations on `number`s in TypeScript. So, time to think of another workaround!
+
+We can simply add an empty string (`""`) to our `number` or `string` to convert it to a `string` first. Then we can call `trim` and see if it's empty:
+
+```typescript
+("" + model.paymentAmount).trim() === ""
+```
+
+So our final check for valid numbers becomes:
+
+```typescript
+if (model.paymentAmount == null
+    || ("" + model.paymentAmount).trim() === ""
+    || isNaN(+model.paymentAmount)) {
+    return false;
+}
+```
+
 ## Hacky but all right...
 Needless to say, this is all a bit hacky, but it is wonderful when you can avoid relying on `any` whenever possible. Obviously, you'll want to document this hack so others know what you're doing. I figured I would share this hack even if it's not immediately useful for folks, simply because it highlights a lot of nifty JavaScript techniques.
