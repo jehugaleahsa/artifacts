@@ -221,6 +221,48 @@ This lookup ensures the same `Task<string>` is returned for a path. Several acco
 
 It's important to note we do not need to use a `ConcurrentDictionary` here. Even though further up the stack we are using `Task.WhenAll`, the tasks are created synchronously. In other words, the `Dictionary` is being accessed synchronously even though reading the file is run asynchronously. Understanding that is fundamental to understanding asynchronous coding!
 
+### (Update) Yeah, let's use `ConcurrentDictionary` here anyway
+In a real-world environment, I actually discovered you can run into problems accessing the `Dictionary<string, Task<string>>` in the example above. There's no issue when all the tasks are created synchronously before calling `WhenAll`. However, it's easy to find yourself in a situation where you'd be calling `GetLegalTextAsync` after execution resumes as part of calling another asynchronous operation. You can't guarantee which thread an asynchronous operation resumes on, so it's very possible two threads will try to `Add` an item with the same key multiple times. This will also mean accessing the file system for the same file multiple times... exactly what we're trying to avoid.
+
+So let's use `ConcurrentDictionary` so we don't need to worry about how the lookup is being accessed. Instead of using `TryGetValue`, `ConcurrentDictionary` exposes a [GetOrAdd](https://docs.microsoft.com/en-us/dotnet/api/system.collections.concurrent.concurrentdictionary-2.getoradd?view=netframework-4.7.2#System_Collections_Concurrent_ConcurrentDictionary_2_GetOrAdd__0_System_Func__0__1__) method. The `GetOrAdd` method will call a factory function if the key is not found. The code ends up looking like this:
+
+```csharp
+private readonly ConcurrentDictionary<string, Task<string>> fileLookup = new ConcurrentDictionary<string, Task<string>>();
+
+// ..
+
+private Task<string> GetLegalTextAsync(Account account, Cancellation token)
+{
+    string filePath = GetLegalTextFilePath(account);
+    return fileLookup.GetOrAdd(filePath, (key) => 
+    {
+        return File.ReadAllTextAsync(key, token);
+    });
+}
+```
+
+But, hold on! Here's the challenge... `ConcurrentDictionary` doesn't guarantee `GetOrAdd` will only call the factory function once and only once. This is disappointing because it means we might try to open the same file multiple times, which defeats the whole point of using a dictionary.
+
+After some research, I discovered an interesting [workaround](https://andrewlock.net/making-getoradd-on-concurrentdictionary-thread-safe-using-lazy/): using `Task` and `Lazy` together. So, even though several threads calling `GetOrAdd` with the same key will result in a separate `Lazy` being constructed, only one will actually be added to the `ConcurrentDictionary`. The expensive operation, actually hitting the file system, will only occur once when `Lazy`'s `Value` property is accessed. So, this is the final version of our code:
+
+```csharp
+private readonly ConcurrentDictionary<string, Lazy<Task<string>>> fileLookup = new ConcurrentDictionary<string, Lazy<Task<string>>>();
+
+// ..
+
+private Task<string> GetLegalTextAsync(Account account, Cancellation token)
+{
+    string filePath = GetLegalTextFilePath(account);
+    var lazy = fileLookup.GetOrAdd(filePath, (key) => new Lazy<Task<string>>(() =>
+    {
+        return File.ReadAllTextAsync(key, token);
+    }));
+    return lazy.Value;
+}
+```
+
+It's easy to be overwhelmed by the number generic parameters involved or the doubly nested factory calls. Still, this is a pretty elogant and efficient solution to an otherwise hairy situation. Obviously, if you can avoid this level of complexity, you should. However, I thought I was in the clear until I discovered runtime errors trying to use an ordinary `Dictionary`. Certainly, using `ConcurrentDictionary` with `Lazy` is a more robust and safe solution.
+
 ### Local function implementation
 Personally, I do not like having a class-wide `Dictionary` when it is only being used in one method, since that extends its lifetime unnecessarily. I might instead choose to create the `Dictionary` in the first `SetLegalTextAsync` method and pass it to second `SetLegalTextAsync` method, but now we're back to passing lookups all over.
 
