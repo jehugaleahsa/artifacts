@@ -31,7 +31,7 @@ The next time I feel like playing around in C++, I might look into Maven's suppo
 ## Annotation Processing
 The next feature I'd like to mention is Java's support for compile-time annotation processing. This language feature is not something you are going to need everyday. However, it is especially powerful for automatically generating code.
 
-In .NET (and most languages), dependency injection is a runtime concept. When you ask for an instance of a class, the DI library will look to see what needs injected and recursively creates a graph of objects. The first time this happens be slow if the library has to build an internal cache using reflection and *even dangerous* if you neglected to provide a binding.
+In .NET (and most languages), dependency injection is a runtime concept. When you ask for an instance of a class, the DI library will look to see what needs injected and recursively creates a graph of objects. The first time this happens can be slow if the library has to build an internal cache using reflection and *even dangerous* if you neglected to provide a binding.
 
 A couple years ago I started thinking about what it would take to make a compile-time dependency injection framework where any missing bindings would be caught at compile time. After a couple thought experiments, I realized this *could* be done with with a lot (*a lot, a lot*) of manual code. The only way to make this palatable would be if some sort of code generator could write most of that wiring code for you.
 
