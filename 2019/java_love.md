@@ -1,5 +1,5 @@
 # I love java
-I spent the last 10+ years using .NET, primarily working in C#. Because of that, it might seem like going to a Java shop as a pretty big leap. However, it's been an especially awesome experience and I can honestly say that Java is a wonderful language and ecosystem to work in.
+I spent the last 10+ years using .NET, primarily working in C#. Because of that, it might seem like me recently going to a Java shop was a pretty big leap. However, it's been an especially awesome experience and I can honestly say that Java is a wonderful language and ecosystem to work in.
 
 Without getting into too much of the nitty gritty, I hope I can share with you some of my recent discoveries that have made working in Java a real treat. This should be of particular interest to other people working in .NET who wonder if Java's worth their time.
 
