@@ -1,4 +1,4 @@
-## Intialization
+## Initialization
 ### Limited scope and one-time use
 Variables should always be declared as close to where they're used as possible. Not reusing variables for different purposes will help.
 
@@ -135,19 +135,6 @@ for (int i = items.Length; i != 0; )
     // ...
 }
 ```
-
-## Meeting in the middle
-You can move two indexes from the start and end of a list and stop in the middle like this:
-
-```csharp
-for (int start = 0, end = items.Length; start != end; )
-{
-    --end;
-    // ...
-}
-```
-
-It doesn't matter if the array has an even or odd number of items.
 
 ## Methods
 ### Use guard clauses
