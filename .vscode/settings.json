@@ -26,5 +26,8 @@
         "typescript",
         "typescriptreact",
         "yml"
+    ],
+    "cSpell.enableFiletypes": [
+        "markdown"
     ]
 }
