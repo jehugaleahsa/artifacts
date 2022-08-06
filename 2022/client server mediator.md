@@ -1,0 +1,26 @@
+# Consumers, Suppliers, and Mappers
+
+I want to talk about a very simple idea that leads to better code. It's worth discussing because it's often overlooked by experienced developers, leading to brittle architectures.
+
+tl;dr - Build an interface that makes it easiest for the consumer to do their jobs, and then build an intermediate class that maps from the source's format into the consumer's format.
+
+## Is it a server or a client?
+When I first started writing this discussion, I was trying to use the terms client and server. These terms just lead to confusion. First, I am not talking about UIs and web servers, but the interaction of software at any scale. Second, most interactions are bi-directional to some degree, and I think client/server implies one has control over the other or one manages a resource the other wants access to. That's out of scope. Instead, I will be focusing on the communication between two classes, perhaps across some sort of boundary, such as an web API or calls across layers in an architecture.
+
+## The accumulation of information
+When you are writing code, you are typically focused on passing information from the top of the application down. Consider a query against a REST API: the information at the top of the application is usually identifying information only. As you move down the call stack, closer to the data source (presumably a database), you replace that identifying information, such as primary keys, filters, etc. into a more rich model, often enriched with data coming from one or more data sources. For example, a authentication header might get translated into the User object representing the current user performing the request. The ID from the REST API URL gets converted into the primary database record your looking at. Query string parameters are used to filter a result set down, or control its presentation (think sorting, pagination, etc.). When you've accumulated enough data, you have essentially fulfilled the original request and you can bubble that information back up to the top of the application.
+
+The most common, most straight-forward approach to writing this sort of code is to use Martin Fowlers' [Transaction Script](https://martinfowler.com/eaaCatalog/transactionScript.html) approach. At each step, you use identifying information to gather a little more data. You repeat this until you have all the data you need in order to complete the request.
+
+Developers often make their biggest mistake right here, without ever realizing it.
+
+## Build the ideal interface
+The act of accumulating information to execute some logic is often so entangled with performing the logic itself, that developers never consider separating these. The code that gathers information has its own set of dependencies, whereas the actual logic usually works entirely with in-memory classes, meaning it has virtually no dependencies (at least not dependencies in terms of dependency injection).
+
+Instead, it is helpful to write logic pretending you're oblivious to things like a UI layer, the data layer, and so on. First, you ask yourself: what information do I need to do the job? You don't worry about how you *get* the information; you just write a class and create setters for providing that information. As you work through the logic, add any additional setters to provide additional information. At this point, you already have the working code, and it's easy to test because of the lack of dependencies - so do that. Second, you can consider whether any of the information you'vee provided can be derived/computed. You can then decide whether those computations belong in the code you're writing (does this logic logically belong here?) or whether you need to be passed something richer than primitive data. If you decide you need a richer data source, you often build *another* object, moving your object's setters into it. It can then provide methods for computing the derived values. Then you add a setter for the richer object as a replacement, updating your unit tests, as needed.
+
+By the time you are done with this exercise, you have one or more classes that are virtually pure logic that's easily testable.
+
+## Mapping to your expectations
+The final step is to now build your objects, arranging them for execution. This is where you go back to converting identifying information into the actual data needed, hitting the database or whatever. This mapping exercise is best put in a "mapper" class, taking any dependencies via constructor, utilizing dependency injection. Rather than execute the logic inside the mapper itself, you simply have the mapper return an instance to the object(s). The code that previously would have been doing all this code to gather information and execute the logic, now just requests a class from a mapper and executes it. Often, the output of the core logic needs to go through yet another mapper class, converting the output into something more appropriate for the UI/consumer. In fact, if a large or complex payload is needed as a response, you may find yourself writing several little logic classes, and several mappers, in order to build it. Your top-level code ends up just coordinating the effort across many separate classes.
+
